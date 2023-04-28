@@ -142,6 +142,12 @@ function loop() {
     if (selectedCell !== null) drawSelection()
 }
 
-setInterval(() => {
-    window.requestAnimationFrame(loop)
-}, 1000 / FRAMERATE)
+let theInterval = null
+
+function startLoop() {
+    theInterval = setInterval(() => {
+        window.requestAnimationFrame(loop)
+    }, 1000 / FRAMERATE)
+}
+
+startLoop()
