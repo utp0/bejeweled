@@ -2,11 +2,13 @@
 const CELLS_X = 8
 const CELLS_Y = 8
 const CELLS_BORDER_PX = 1
-const CELLS_BORDER_SELECTED_PX = 2.5
+const CELLS_BORDER_SELECTED_PX = 5
+const CELLS_BORDER_VALID_PX = 3
 const FRAMERATE = 30  // lehet később event alapú update, idk.
 const CELLS_BG_STYLE = "#4c096c"
 const CELL_SELECTED_STYLE = "#e1d866"
 const CELL_VALID_STYLE = "#e7e1b3"
+const STONE_SIZE_MULTIPLIER = 0.8
 /* Beállítások vége */
 
 // canvas-ban ,5 pixelre kéne rajzolni, hogy egész pixelre essenek a dolgok
@@ -25,13 +27,22 @@ let cellHeight = Math.min(canvW, canvH) / CELLS_Y
 let gridX = (canvW / 2) - (cellWidth * CELLS_X / 2)
 let gridY = (canvH / 2) - (cellHeight * CELLS_Y / 2)
 
-// 2D mezőtömb kőizék tárolására
+/**
+ *
+ * @type {Stone[][]}
+ */
 let cells = new Array(CELLS_X);
 for (let i = 0; i < cells.length; i++) cells[i] = new Array(CELLS_Y);
 
 canv.addEventListener("click", canvClickHandler)
 
+/**
+ * Kattintások kezelésének ideiglenes letiltására alkalmas
+ * @type {boolean}
+ */
+let doHandleClickEvents = true
 function canvClickHandler(e) {
+    if(doHandleClickEvents === false) return
     /// négyzet koordináta kiszámolása
     // igazítás grid pozícióhoz
     let x = e.clientX - canvX - gridX
@@ -41,7 +52,8 @@ function canvClickHandler(e) {
     let mezoX = Math.floor(x / cellWidth)
     let mezoY = Math.floor(y / cellHeight)
     //console.debug(`mezo ${mezoX} ${mezoY}`)
-    interactWithCell(mezoX, mezoY)
+    if (mezoX >= 0 && mezoX < CELLS_X && mezoY >= 0 && mezoY < CELLS_Y)
+        interactWithCell(mezoX, mezoY)
 }
 
 /**
@@ -79,7 +91,11 @@ function interactWithCell(x, y) {
  * @param b
  */
 function swapCells(a, b) {
-    // TODO
+    let temp = cells[a.x][a.y]
+    cells[a.x][a.y] = cells[b.x][b.y]
+    cells[b.x][b.y] = temp
+    // ha nincs eredménye, vissza
+
 }
 
 function drawBG() {
@@ -108,18 +124,23 @@ function drawSelection() {
 
     // valid mezők
     ctx.strokeStyle = CELL_VALID_STYLE
+    ctx.lineWidth = CELLS_BORDER_VALID_PX
     for (let i = selectedCell.x - 1; i <= selectedCell.x + 1; i += 2) {
+        if(i < 0 || i >= CELLS_X) continue
         ctx.beginPath()
-        ctx.strokeRect(i * cellWidth,
-            selectedCell.y * cellHeight,
+        ctx.strokeRect(
+            gridX + i * cellWidth,
+            gridY + selectedCell.y * cellHeight,
             cellWidth,
             cellHeight)
         ctx.closePath()
     }
     for (let i = selectedCell.y - 1; i <= selectedCell.y + 1; i += 2) {
+        if(i < 0 || i >= CELLS_Y) continue
         ctx.beginPath()
-        ctx.strokeRect(selectedCell.x * cellWidth,
-            i * cellHeight,
+        ctx.strokeRect(
+            gridX + selectedCell.x * cellWidth,
+            gridY + i * cellHeight,
             cellWidth,
             cellHeight)
         ctx.closePath()
@@ -129,17 +150,62 @@ function drawSelection() {
     ctx.strokeStyle = CELL_SELECTED_STYLE
     ctx.lineWidth = CELLS_BORDER_SELECTED_PX
     ctx.beginPath()
-    ctx.strokeRect(selectedCell.x * cellWidth,
-        selectedCell.y * cellHeight,
+    ctx.strokeRect(
+        gridX + selectedCell.x * cellWidth,
+        gridY + selectedCell.y * cellHeight,
         cellWidth,
         cellHeight)
     ctx.closePath()
 }
 
+function drawStones() {
+    for (let i = 0; i < cells.length; i++) {
+        for (let j = 0; j < cells[i].length; j++) {
+            ctx.beginPath()
+            ctx.drawImage(cells[i][j].image,
+                gridX + i * cellWidth + (cellWidth * (1 - STONE_SIZE_MULTIPLIER) / 2),
+                gridY + j * cellHeight + (cellHeight * (1 - STONE_SIZE_MULTIPLIER) / 2),
+                cellWidth * STONE_SIZE_MULTIPLIER,
+                cellHeight * STONE_SIZE_MULTIPLIER
+            )
+            ctx.closePath()
+        }
+    }
+}
+
+function vibeCheck() {
+
+}
+
+/**
+ * true ha épp fut egy loop, hátha túl lassú a gép (lol)
+ * @type {boolean}
+ */
+let loopInProgress = false
+
+/**
+ * fő game loop funkció, meghív egyéb részfolyamatokat
+ */
 function loop() {
+    if (loopInProgress === true) return
+    loopInProgress = true
     drawBG()
     drawGrid()  // lehet nemkell, még idk.
+    drawStones()
     if (selectedCell !== null) drawSelection()
+    loopInProgress = false
+}
+
+function initGame() {
+    // random tábla generálás
+    for (let i = 0; i < cells.length; i++) {
+        for (let j = 0; j < cells[i].length; j++) {
+            let rndInt =
+                Math.floor(Math.random() * stoneTemplates.length)
+            cells[i][j] = stoneTemplates[rndInt].duplicate()
+        }
+    }
+    startLoop()
 }
 
 let theInterval = null
@@ -150,4 +216,46 @@ function startLoop() {
     }, 1000 / FRAMERATE)
 }
 
-startLoop()
+// képek betöltése
+ctx.beginPath()
+ctx.fillStyle = "#FFFFFF"
+ctx.font = "60px Arial"
+ctx.fillText("Források betöltése...", 0, canvH / 2 + 30)
+ctx.closePath()
+
+/**
+ * Kő sablonok, nem kéne módosítani
+ * @type {Stone[]}
+ */
+let stoneTemplates = []
+
+Object.keys(stonePaths).forEach((key) => {
+    let img = new Image()
+    img.isFullyLoadedASD = false
+    img.addEventListener("load", () => {
+        img.isFullyLoadedASD = true
+        console.debug(`loaded ${key}: ${stonePaths[key]}`)
+    })
+    img.src = stonePaths[key]
+    //imageObjects.push(img)
+    let stone = new Stone(key, img, false)
+    stoneTemplates.push(stone)
+})
+
+function checkLoadedness() {
+    let unloaded = 0
+    for (let i = 0; i < stoneTemplates.length; i++) {
+        if (stoneTemplates[i].image.isFullyLoadedASD === false)
+            unloaded++
+    }
+    if (unloaded === 0) {
+        // képek betöltve, go
+        initGame()
+        return
+    }
+    setTimeout(() => {
+        checkLoadedness();
+    }, 50)
+}
+
+checkLoadedness()
