@@ -1,7 +1,10 @@
 body {
     background-color: #111111;
+    color: white;
+    font-family: Verdana, serif;
+    font-size: 24px;
 }
 
 canvas {
-    border: 1px dashed #2F2F2F
+    border: 1px dashed #2F2F2F;
 }
