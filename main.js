@@ -6,6 +6,7 @@ const CELLS_BORDER_SELECTED_PX = 2.5
 const FRAMERATE = 30  // lehet később event alapú update, idk.
 const CELLS_BG_STYLE = "#4c096c"
 const CELL_SELECTED_STYLE = "#e1d866"
+const CELL_VALID_STYLE = "#e7e1b3"
 /* Beállítások vége */
 
 // canvas-ban ,5 pixelre kéne rajzolni, hogy egész pixelre essenek a dolgok
@@ -101,12 +102,33 @@ function drawGrid() {
 }
 
 function drawSelection() {
-    if(!(selectedCell instanceof Position)) {
+    if (!(selectedCell instanceof Position)) {
         return
     }
-    ctx.beginPath()
+
+    // valid mezők
+    ctx.strokeStyle = CELL_VALID_STYLE
+    for (let i = selectedCell.x - 1; i <= selectedCell.x + 1; i += 2) {
+        ctx.beginPath()
+        ctx.strokeRect(i * cellWidth,
+            selectedCell.y * cellHeight,
+            cellWidth,
+            cellHeight)
+        ctx.closePath()
+    }
+    for (let i = selectedCell.y - 1; i <= selectedCell.y + 1; i += 2) {
+        ctx.beginPath()
+        ctx.strokeRect(selectedCell.x * cellWidth,
+            i * cellHeight,
+            cellWidth,
+            cellHeight)
+        ctx.closePath()
+    }
+
+    // selected mező
     ctx.strokeStyle = CELL_SELECTED_STYLE
     ctx.lineWidth = CELLS_BORDER_SELECTED_PX
+    ctx.beginPath()
     ctx.strokeRect(selectedCell.x * cellWidth,
         selectedCell.y * cellHeight,
         cellWidth,
