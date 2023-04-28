@@ -13,3 +13,11 @@ class Stone {
         this.boom = boom
     }
 }
+
+const stonePaths = {
+    "blue": "images/blue.png",
+    "green": "images/green.png",
+    "purple": "images/purple.png",
+    "red": "images/red.png",
+    "yellow": "images/yellow.png"
+}
