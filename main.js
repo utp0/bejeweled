@@ -1,7 +1,7 @@
 /* Beállítások */
 const CELLS_X = 8
 const CELLS_Y = 8
-const CELLS_BORDER_PX = 2
+const CELLS_BORDER_PX = 1
 const FRAMERATE = 30  // lehet később event alapú update, idk.
 const BGSTYLE = "#4c096c"
 /* Beállítások vége */
@@ -29,7 +29,7 @@ function canvClickHandler(e) {
     // igazítás grid pozícióhoz
     let x = e.clientX - canvX - gridX
     let y = e.clientY - canvY - gridY
-    console.debug(`click ${x} ${y}`)
+    // console.debug(`click ${x} ${y}`)
     let mezoX = Math.floor(x / cellWidth)
     let mezoY = Math.floor(y / cellHeight)
     console.debug(`mezo ${mezoX} ${mezoY}`)
@@ -45,14 +45,18 @@ function drawBG() {
 function drawGrid() {
     ctx.strokeStyle = "rgb(128, 128, 128)"
     ctx.lineWidth = CELLS_BORDER_PX
-    ctx.beginPath()
-    ctx.strokeRect(gridX, gridY, cellWidth, cellHeight)
-    ctx.closePath()
+    for(let i = 0; i < CELLS_X; i++) {
+        for(let j = 0; j < CELLS_Y; j++) {
+            ctx.beginPath()
+            ctx.strokeRect(gridX + i * cellWidth, gridY + j * cellHeight, cellWidth, cellHeight)
+            ctx.closePath()
+        }
+    }
 }
 
 function loop() {
     drawBG()
-    drawGrid()
+    drawGrid()  // lehet nemkell, még idk.
 }
 
 setInterval(loop, 1000 / FRAMERATE)
