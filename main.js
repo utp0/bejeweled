@@ -12,8 +12,6 @@ const STONE_SIZE_MULTIPLIER = 0.8
 const DESTROY_AMOUNT = 3
 /* Beállítások vége */
 
-// canvas-ban ,5 pixelre kéne rajzolni, hogy egész pixelre essenek a dolgok
-
 let canv = document.getElementById("canvas1")
 let ctx = canv.getContext("2d")
 
@@ -115,7 +113,7 @@ function swapCells(a, b) {
 function searchDestroyTarget(a) {
     let didAThing = false
     let startCell = cells[a.x][a.y]
-    if(startCell == null) return false
+    if (startCell == null) return false
     /**
      * @type {Position[]}
      */
@@ -262,8 +260,31 @@ function drawStones() {
     }
 }
 
+function gravity() {
+    // üres hely keresése lentről
+    for (let x = 0; x < CELLS_X; x++) {
+        for (let y = CELLS_Y - 1; y >= 0; y--) {
+            if(cells[x][y] == null) {
+                // üres, felfele loopolva minde essen le
+                for(let inY = y - 1; y >= 0; y--) {
+
+                }
+            }
+        }
+    }
+}
+
 /**
- * true ha épp fut egy loop, hátha túl lassú a gép h
+ * Egy kőnek a leesését animálja, blocking
+ * @param fromPos Kezdő pozíció
+ * @param toPos Végpozíció
+ */
+function animFall(fromPos, toPos) {
+
+}
+
+/**
+ * true ha épp fut egy loop, ha lassú a gép vagy blokkoló anim megy
  * @type {boolean}
  */
 let loopInProgress = false
@@ -274,10 +295,13 @@ let loopInProgress = false
 function loop() {
     if (loopInProgress === true) return
     loopInProgress = true
+
+    gravity()
     drawBG()
     drawGrid()  // lehet nemkell, még idk.
     drawStones()
     if (selectedCell !== null) drawSelection()
+
     loopInProgress = false
 }
 
@@ -290,8 +314,10 @@ function initGame() {
             cells[i][j] = stoneTemplates[rndInt].duplicate()
         }
     }
-    if(searchDestroyAll()){
-        setTimeout(() => {initGame();}, 0)
+    if (searchDestroyAll()) {
+        setTimeout(() => {
+            initGame();
+        }, 0)
         return
     }
     startLoop()
