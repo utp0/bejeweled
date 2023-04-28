@@ -6,6 +6,8 @@ const FRAMERATE = 30  // lehet később event alapú update, idk.
 const BGSTYLE = "#4c096c"
 /* Beállítások vége */
 
+// canvas-ban ,5 pixelre kéne rajzolni, hogy egész pixelre essenek a dolgok
+
 let canv = document.getElementById("canvas1")
 let ctx = canv.getContext("2d")
 
@@ -23,7 +25,14 @@ let gridY = (canvH / 2) - (cellHeight * CELLS_Y / 2)
 canv.addEventListener("click", canvClickHandler)
 
 function canvClickHandler(e) {
-
+    /// négyzet koordináta kiszámolása
+    // igazítás grid pozícióhoz
+    let x = e.clientX - canvX - gridX
+    let y = e.clientY - canvY - gridY
+    console.debug(`click ${x} ${y}`)
+    let mezoX = Math.floor(x / cellWidth)
+    let mezoY = Math.floor(y / cellHeight)
+    console.debug(`mezo ${mezoX} ${mezoY}`)
 }
 
 function drawBG() {
