@@ -5,12 +5,20 @@
  */
 class Stone {
     id;
-    texture;
+    image;
     boom;
-    constructor(id, texture, boom) {
+    constructor(id, image, boom) {
         this.id = id
-        this.texture = texture
+        this.image = image
         this.boom = boom
+    }
+
+    /**
+     * Saját magáról ad egy új példányt
+     * @returns {Stone}
+     */
+    duplicate() {
+        return new Stone(this.id, this.image, this.boom)
     }
 }
 
