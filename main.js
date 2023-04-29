@@ -4,7 +4,8 @@ const CELLS_Y = 8
 const CELLS_BORDER_PX = 1
 const CELLS_BORDER_SELECTED_PX = 5
 const CELLS_BORDER_VALID_PX = 3
-const FRAMERATE = 30  // lehet később event alapú update, idk.
+const FRAMERATE = 5  // lehet később event alapú update, idk.
+const ANIMATION_SECONDS = 0.7
 const CELLS_BG_STYLE = "#4c096c"
 const CELL_SELECTED_STYLE = "#e1d866"
 const CELL_VALID_STYLE = "#e7e1b3"
@@ -247,7 +248,8 @@ function drawSelection() {
 function drawStones() {
     for (let i = 0; i < cells.length; i++) {
         for (let j = 0; j < cells[i].length; j++) {
-            if (!(cells[i][j] instanceof Stone)) continue
+            if (!(cells[i][j] instanceof Stone) || !cells[i][j].doDraw)
+                continue
             ctx.beginPath()
             ctx.drawImage(cells[i][j].image,
                 gridX + i * cellWidth + (cellWidth * (1 - STONE_SIZE_MULTIPLIER) / 2),
@@ -260,31 +262,67 @@ function drawStones() {
     }
 }
 
-function gravity() {
+/**
+ *
+ * @type {AnimateMoveInfo[]}
+ */
+let activeAnims = []
+
+/**
+ *
+ * @returns {boolean} ha volt, true. ha nem volt, false
+ */
+function emptiesHandler() {
+    let found = false;
     // üres hely keresése lentről
     for (let x = 0; x < CELLS_X; x++) {
         for (let y = CELLS_Y - 1; y >= 0; y--) {
-            if(cells[x][y] == null) {
+            if (cells[x][y] == null) {
+                found = true
+                /**
+                 * csak null oszlop-e; üres-e tetejéig
+                 * @type {boolean}
+                 */
+                let onlyNulls = true
                 // üres, felfele loopolva minde essen le
-                for(let inY = y - 1; y >= 0; y--) {
-
+                let downY = 1
+                for (let inY = y - 1; inY >= 0; inY--) {
+                    ranOnce = true
+                    if (cells[x][inY] == null) {
+                        downY++
+                        continue
+                    }
+                    onlyNulls = false
+                    let anim = new AnimateMoveInfo(
+                        new Position(x, inY),
+                        new Position(x, inY + downY),
+                        FRAMERATE * ANIMATION_SECONDS,
+                        cells[x][inY]
+                    )
+                    // TODO: animáció létrehozás/indítása nemtom
+                    // perpill csak ledobni őket ahova
+                    cells[anim.toPos.x][anim.toPos.y] = anim.stone
+                    cells[anim.fromPos.x][anim.fromPos.y] = null
+                }
+                // ha üres az oszlop fentig, feltölteni randommal
+                if(onlyNulls) {
+                    for(let inY = 0; inY <= y; inY++) {
+                        //if(cells[x][inY] != null) continue
+                        // TODO: animáció létrehozás/indítása nemtom
+                        let rndInt =
+                            Math.floor(Math.random() * stoneTemplates.length)
+                        cells[x][inY] = stoneTemplates[rndInt].duplicate()
+                    }
                 }
             }
         }
     }
+    return found
 }
 
-/**
- * Egy kőnek a leesését animálja, blocking
- * @param fromPos Kezdő pozíció
- * @param toPos Végpozíció
- */
-function animFall(fromPos, toPos) {
-
-}
 
 /**
- * true ha épp fut egy loop, ha lassú a gép vagy blokkoló anim megy
+ * true ha épp fut egy loop
  * @type {boolean}
  */
 let loopInProgress = false
@@ -296,7 +334,8 @@ function loop() {
     if (loopInProgress === true) return
     loopInProgress = true
 
-    gravity()
+    emptiesHandler()
+    searchDestroyAll()
     drawBG()
     drawGrid()  // lehet nemkell, még idk.
     drawStones()
@@ -314,6 +353,7 @@ function initGame() {
             cells[i][j] = stoneTemplates[rndInt].duplicate()
         }
     }
+    // hehe
     if (searchDestroyAll()) {
         setTimeout(() => {
             initGame();

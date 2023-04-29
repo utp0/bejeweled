@@ -1,12 +1,17 @@
 /**
- * @param id típus/szín azonosító
- * @param texture textúra (kép)/szín
- * @param boom true/false, bomba-e
+ * @param id {*} típus/szín azonosító
+ * @param texture {Image} textúra (kép)/szín
+ * @param boom {boolean} true/false, bomba-e
  */
 class Stone {
     id;
     image;
     boom;
+    /**
+     * rajzolódjon-e a loop-ban (animációnál használatos)
+     * @type {boolean}
+     */
+    doDraw = true;
     constructor(id, image, boom) {
         this.id = id
         this.image = image
@@ -18,7 +23,9 @@ class Stone {
      * @returns {Stone}
      */
     duplicate() {
-        return new Stone(this.id, this.image, this.boom)
+        let dup = new Stone(this.id, this.image, this.boom)
+        dup.doDraw = this.doDraw
+        return dup
     }
 }
 
