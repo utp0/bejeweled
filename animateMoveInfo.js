@@ -7,13 +7,13 @@
 class AnimateMoveInfo {
     fromPos;
     toPos;
-    frames;
+    timeSeconds;
     stone;
 
-    constructor(fromPos, toPos, frames, stone) {
+    constructor(fromPos, toPos, timeSeconds, stone) {
         this.fromPos = fromPos;
         this.toPos = toPos;
-        this.frames = frames;
+        this.timeSeconds = timeSeconds;
         this.stone = stone;
     }
 }
