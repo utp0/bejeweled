@@ -4,11 +4,12 @@ const CELLS_Y = 8
 const CELLS_BORDER_PX = 1
 const CELLS_BORDER_SELECTED_PX = 5
 const CELLS_BORDER_VALID_PX = 3
-const FRAMERATE = 5  // lehet később event alapú update, idk.
+const FRAMERATE = 30  // lehet később event alapú update, idk.
 const ANIMATION_SECONDS = 0.7
 const CELLS_BG_STYLE = "#4c096c"
 const CELL_SELECTED_STYLE = "#e1d866"
 const CELL_VALID_STYLE = "#e7e1b3"
+const TEXT_STYLE = "#dcdcdc"
 const STONE_SIZE_MULTIPLIER = 0.8
 const DESTROY_AMOUNT = 3
 /* Beállítások vége */
@@ -24,8 +25,12 @@ let canvY = canv.getBoundingClientRect().y
 let cellWidth = Math.min(canvW, canvH) / CELLS_X
 let cellHeight = Math.min(canvW, canvH) / CELLS_Y
 
-let gridX = (canvW / 2) - (cellWidth * CELLS_X / 2)
-let gridY = (canvH / 2) - (cellHeight * CELLS_Y / 2)
+// ez 4:3 képarányban jó, max a sidebar-t bele kell számolni, ha vmiért ez változna
+//let gridX = (canvW / 2) - (cellWidth * CELLS_X / 2)  // HOR közép
+let gridX = (canvW) - (cellWidth * CELLS_X)  // HOR jobbra tol
+let gridY = (canvH / 2) - (cellHeight * CELLS_Y / 2)  // VER közép
+
+// TODO: "global" változókat össze kéne gyűjteni mondjuk ide
 
 /**
  *
@@ -135,6 +140,7 @@ function searchDestroyTarget(a) {
     }
 
     if (destroyArray.length >= DESTROY_AMOUNT) {
+        points += destroyArray.length
         // TODO: animáció
         for (let i = 0; i < destroyArray.length; i++) {
             cells[destroyArray[i].x][destroyArray[i].y] = null
@@ -159,6 +165,7 @@ function searchDestroyTarget(a) {
     }
 
     if (destroyArray.length >= DESTROY_AMOUNT) {
+        points += destroyArray.length
         // TODO: animáció
         for (let i = 0; i < destroyArray.length; i++) {
             cells[destroyArray[i].x][destroyArray[i].y] = null
@@ -264,12 +271,6 @@ function drawStones() {
 
 /**
  *
- * @type {AnimateMoveInfo[]}
- */
-let activeAnims = []
-
-/**
- *
  * @returns {boolean} ha volt, true. ha nem volt, false
  */
 function emptiesHandler() {
@@ -305,8 +306,8 @@ function emptiesHandler() {
                     cells[anim.fromPos.x][anim.fromPos.y] = null
                 }
                 // ha üres az oszlop fentig, feltölteni randommal
-                if(onlyNulls) {
-                    for(let inY = 0; inY <= y; inY++) {
+                if (onlyNulls) {
+                    for (let inY = 0; inY <= y; inY++) {
                         //if(cells[x][inY] != null) continue
                         // TODO: animáció létrehozás/indítása nemtom
                         let rndInt =
@@ -320,6 +321,42 @@ function emptiesHandler() {
     return found
 }
 
+const textPos = new Position(-2.3, 3)
+const textPx = 36 * (Math.min(cellWidth, cellHeight) / 72.25)  // 72.25: 800x600-on cellWidth
+
+/**
+ * pontok
+ * @type {number}
+ */
+let points = 0
+
+/**
+ * Még vanó másodpercek
+ * @type {number|string}
+ */
+let timeLeftSecs = 60
+
+function drawSideUI() {
+    // gridX és gridY-hoz igazítva sima kéne legyen
+    // szabad helyet nem ellenőriz, canvas w/h-hoz nem lesz nyúlva
+    ctx.font = textPx + "px Arial"
+    ctx.fillStyle = TEXT_STYLE
+    let x = gridX + textPos.x * cellWidth
+    let y = gridY + textPos.y * cellHeight
+    let maxWidth = cellWidth * 1.85
+
+    // score
+    ctx.fillText("SCORE", x, y, maxWidth)
+    y += textPx
+    ctx.fillText(points.toString(), x, y, maxWidth)
+
+    // time
+    y += textPx * 1.5
+    ctx.fillText("TIME", x, y, maxWidth)
+    y += textPx
+    ctx.fillText(timeLeftSecs.toString(), x, y, maxWidth)
+}
+
 
 /**
  * true ha épp fut egy loop
@@ -328,22 +365,52 @@ function emptiesHandler() {
 let loopInProgress = false
 
 /**
+ * game mechanic frissítéseket ki lehet kapcsolni anim idejére
+ * @type {boolean}
+ */
+let doBoardUpdates = true
+
+/**
  * fő game loop funkció, meghív egyéb részfolyamatokat
  */
 function loop() {
-    if (loopInProgress === true) return
+    if (loopInProgress) return
     loopInProgress = true
 
-    emptiesHandler()
-    searchDestroyAll()
+    if (doBoardUpdates) {
+        emptiesHandler()
+        searchDestroyAll()
+    }
     drawBG()
     drawGrid()  // lehet nemkell, még idk.
     drawStones()
     if (selectedCell !== null) drawSelection()
+    drawSideUI()
+    if(timeCheck()) {
+        // TODO: vége, prompt for name, leaderboard
+    }
 
     loopInProgress = false
 }
 
+/**
+ * időlejárat-ellenőrző
+ * @returns {boolean} le-e járt az idő
+ */
+function timeCheck() {
+    if(timeInterval === null) return false
+    if(timeLeftSecs<=0) {
+        clearInterval(timeInterval)
+        doHandleClickEvents = false
+        timeInterval = null
+        timeLeftSecs = "GAME OVER"
+        console.debug("time")
+        return true
+    }
+    return false
+}
+
+let timeInterval = null
 function initGame() {
     // random tábla generálás
     for (let i = 0; i < cells.length; i++) {
@@ -361,11 +428,16 @@ function initGame() {
         return
     }
     startLoop()
+    // time
+    timeInterval = setInterval(() => {
+        timeLeftSecs--
+    }, 1000)
 }
 
 let theInterval = null
 
 function startLoop() {
+    points = 0
     theInterval = setInterval(() => {
         window.requestAnimationFrame(loop)
     }, 1000 / FRAMERATE)
@@ -391,7 +463,7 @@ Object.keys(stonePaths).forEach((key) => {
         img.isFullyLoadedASD = true
         console.debug(`loaded ${key}: ${stonePaths[key]}`)
     })
-    img.src = stonePaths[key]
+    img.src = stonePaths[key]  // ez a listener def után kell, local túl gyors
     //imageObjects.push(img)
     let stone = new Stone(key, img, false)
     stoneTemplates.push(stone)
