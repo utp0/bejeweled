@@ -5,7 +5,8 @@ const CELLS_BORDER_PX = 1
 const CELLS_BORDER_SELECTED_PX = 5
 const CELLS_BORDER_VALID_PX = 3
 const FRAMERATE = 30  // lehet később event alapú update, idk.
-const ANIMATION_SECONDS = 0.7
+const ANIMATION_SECONDS_LONG = 0.7
+const ANIMATION_SECONDS_SHORT = 0.3
 const CELLS_BG_STYLE = "#4c096c"
 const CELL_SELECTED_STYLE = "#e1d866"
 const CELL_VALID_STYLE = "#e7e1b3"
@@ -297,7 +298,7 @@ function emptiesHandler() {
                     let anim = new AnimateMoveInfo(
                         new Position(x, inY),
                         new Position(x, inY + downY),
-                        FRAMERATE * ANIMATION_SECONDS,
+                        ANIMATION_SECONDS_LONG,
                         cells[x][inY]
                     )
                     // TODO: animáció létrehozás/indítása nemtom
@@ -321,8 +322,8 @@ function emptiesHandler() {
     return found
 }
 
-const textPos = new Position(-2.3, 3)
-const textPx = 36 * (Math.min(cellWidth, cellHeight) / 72.25)  // 72.25: 800x600-on cellWidth
+const textPos = new Position(-2.3, 0.5)
+let textPx = 36 * (Math.min(cellWidth, cellHeight) / 72.25)  // 72.25: 800x600-on cellWidth
 
 /**
  * pontok
@@ -355,6 +356,21 @@ function drawSideUI() {
     ctx.fillText("TIME", x, y, maxWidth)
     y += textPx
     ctx.fillText(timeLeftSecs.toString(), x, y, maxWidth)
+
+    // leaderboard
+    y += textPx * 2.5
+    x -= cellWidth * .23
+    maxWidth *= 1.3
+    ctx.fillText("LEADERBOARD", x, y, maxWidth)
+    y += textPx
+    ctx.font = textPx * .8 + "px Arial"
+    if (leaderboard == null || leaderboard.length === 0) {
+        ctx.fillText("-- empty --", x, y, maxWidth)
+    } else {
+        for (let i = 0; y < canvH && i < leaderboard.length; y += textPx * .8, i++) {
+            ctx.fillText(leaderboard[i][0] + " " + leaderboard[i][1], x, y, maxWidth)
+        }
+    }
 }
 
 
@@ -386,20 +402,48 @@ function loop() {
     drawStones()
     if (selectedCell !== null) drawSelection()
     drawSideUI()
-    if(timeCheck()) {
-        // TODO: vége, prompt for name, leaderboard
-    }
+    if (timeCheck()) gameEndHandler()
 
     loopInProgress = false
 }
 
+function gameEndHandler() {
+    let ok = false
+    let uName = null
+    while (!ok) {
+        uName =
+            prompt("Elért pontszám: " + points.toString() + ". Név (min 3, max 10 karakter):", "player")
+        if (uName === null) {
+            ok = true
+            return
+        }
+        uName = uName.trim()
+        if (uName.length <= 10 && uName.length >= 3) ok = true
+    }
+    // leaderboardra
+    let newLeaderboard = []
+    let isInserted = false
+    for (let i = 0; i < leaderboard.length; i++) {
+        if (leaderboard[i][1].toLowerCase() !== uName.toLowerCase()) {
+            if (!isInserted && points > leaderboard[i][0]) {
+                newLeaderboard.push([points, uName])
+                isInserted = true
+            }
+            newLeaderboard.push(leaderboard[i])
+        }
+    }
+    if (!isInserted) newLeaderboard.push([points, uName])
+    leaderboard = newLeaderboard
+    localStorage.setItem("leaderboard", JSON.stringify(leaderboard))
+}
+
 /**
- * időlejárat-ellenőrző
+ * időlejárat-ellenőrző, le tiltja az inputok kezelését
  * @returns {boolean} le-e járt az idő
  */
 function timeCheck() {
-    if(timeInterval === null) return false
-    if(timeLeftSecs<=0) {
+    if (timeInterval === null) return false
+    if (timeLeftSecs <= 0) {
         clearInterval(timeInterval)
         doHandleClickEvents = false
         timeInterval = null
@@ -410,7 +454,31 @@ function timeCheck() {
     return false
 }
 
+function loadLeaderboard() {
+    let locLB = localStorage.getItem("leaderboard")
+    if (locLB == null) {
+        locLB = JSON.stringify([])
+        localStorage.setItem("leaderboard", locLB)
+        loadLeaderboard()
+        return
+    }
+    try {
+        leaderboard = JSON.parse(locLB)
+    } catch (e) {
+        console.debug("string json formázása nem megfelelő a localstorage-ban")
+        alert("String JSON formázása nem megfelelő a localstorage-ban, leaderboard nem elérhető")
+        leaderboard = null
+    }
+}
+
+/**
+ *
+ * @type {null|Array}
+ */
+let leaderboard = null
+
 let timeInterval = null
+
 function initGame() {
     // random tábla generálás
     for (let i = 0; i < cells.length; i++) {
@@ -427,6 +495,7 @@ function initGame() {
         }, 0)
         return
     }
+    loadLeaderboard()
     startLoop()
     // time
     timeInterval = setInterval(() => {
