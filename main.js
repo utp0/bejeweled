@@ -48,7 +48,13 @@ canv.addEventListener("click", canvClickHandler)
  */
 let doHandleClickEvents = true
 
+let isAlreadyMusic = false
+
 function canvClickHandler(e) {
+    let mp = document.getElementById("bgmusic")
+    mp.play()
+    mp.volume = .1
+
     if (doHandleClickEvents === false || activeAnimsAsyncCtrlNum > 0) {
         selectedCell = null
         return
@@ -145,7 +151,6 @@ function searchDestroyTarget(a) {
 
     if (destroyArray.length >= DESTROY_AMOUNT) {
         points += destroyArray.length
-        // TODO: animáció
         for (let i = 0; i < destroyArray.length; i++) {
             cells[destroyArray[i].x][destroyArray[i].y] = null
         }
@@ -170,11 +175,17 @@ function searchDestroyTarget(a) {
 
     if (destroyArray.length >= DESTROY_AMOUNT) {
         points += destroyArray.length
-        // TODO: animáció
         for (let i = 0; i < destroyArray.length; i++) {
             cells[destroyArray[i].x][destroyArray[i].y] = null
         }
         didAThing = true
+    }
+    if(didAThing) {
+        sounds["point"].play()
+        setTimeout(() => {
+            sounds["point"].pause()
+            sounds["point"].currentTime = 0
+        }, 500)  // kövi animra meglegyen
     }
     return didAThing
 }
@@ -449,7 +460,7 @@ function loop() {
     console.log(`${doBoardUpdates} ${activeAnimsAsyncCtrlNum}`)
 
     while (doBoardUpdates && !activeAnimsAsyncCtrlNum) {
-        if(emptiesHandler())
+        if (emptiesHandler())
             break
         searchDestroyAll()
         break
@@ -486,7 +497,7 @@ function animsHandler() {
                     cellWidth * activeAnimsArray[i].startScaleMul,
                     cellHeight * activeAnimsArray[i].startScaleMul
                 )
-            } else if(activeAnimsArray[i] instanceof AnimateMoveInfo) {
+            } else if (activeAnimsArray[i] instanceof AnimateMoveInfo) {
                 // move animok
                 ctx.drawImage(activeAnimsArray[i].stone.image,
                     gridX + activeAnimsArray[i].fromPos.x * cellWidth + (cellWidth * (1 - STONE_SIZE_MULTIPLIER) / 2),
@@ -636,6 +647,8 @@ Object.keys(stonePaths).forEach((key) => {
     let stone = new Stone(key, img, false)
     stoneTemplates.push(stone)
 })
+
+let sounds = {"point": new Audio("sounds/point.wav")}
 
 function checkLoadedness() {
     let unloaded = 0
