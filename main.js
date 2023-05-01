@@ -4,9 +4,9 @@ const CELLS_Y = 8
 const CELLS_BORDER_PX = 1
 const CELLS_BORDER_SELECTED_PX = 5
 const CELLS_BORDER_VALID_PX = 3
-const FRAMERATE = 30  // lehet később event alapú update, idk.
-const ANIMATION_SECONDS_LONG = 0.7
-const ANIMATION_SECONDS_SHORT = 0.3
+const FRAMERATE = 60  // lehet később event alapú update, idk.
+const ANIMATION_SECONDS_LONG = 0.3
+const ANIMATION_SECONDS_SHORT = 0.15
 const CELLS_BG_STYLE = "#4c096c"
 const CELL_SELECTED_STYLE = "#e1d866"
 const CELL_VALID_STYLE = "#e7e1b3"
@@ -49,7 +49,10 @@ canv.addEventListener("click", canvClickHandler)
 let doHandleClickEvents = true
 
 function canvClickHandler(e) {
-    if (doHandleClickEvents === false) return
+    if (doHandleClickEvents === false || activeAnimsAsyncCtrlNum > 0) {
+        selectedCell = null
+        return
+    }
     /// négyzet koordináta kiszámolása
     // igazítás grid pozícióhoz
     let x = e.clientX - canvX - gridX
@@ -271,6 +274,18 @@ function drawStones() {
 }
 
 /**
+ * Aktív animációk száma
+ * @type {Number}
+ */
+let activeAnimsAsyncCtrlNum = 0
+
+/**
+ *
+ * @type {AnimateMoveInfo[]|AnimateScaleInfo[]}
+ */
+let activeAnimsArray = []
+
+/**
  *
  * @returns {boolean} ha volt, true. ha nem volt, false
  */
@@ -299,21 +314,60 @@ function emptiesHandler() {
                         new Position(x, inY),
                         new Position(x, inY + downY),
                         ANIMATION_SECONDS_LONG,
-                        cells[x][inY]
+                        cells[x][inY].duplicate()
                     )
-                    // TODO: animáció létrehozás/indítása nemtom
-                    // perpill csak ledobni őket ahova
-                    cells[anim.toPos.x][anim.toPos.y] = anim.stone
+
+                    /** animáció létrehozás/indítása */
+                    activeAnimsArray.push(anim)
+                    // ledobni őket ahova
+                    cells[anim.toPos.x][anim.toPos.y] = cells[anim.fromPos.x][anim.fromPos.y].duplicate()
                     cells[anim.fromPos.x][anim.fromPos.y] = null
+                    // anim
+                    cells[anim.toPos.x][anim.toPos.y].doDraw = false  // rajzolás off anim-ig
+                    let speedY = (anim.toPos.y - anim.fromPos.y) * (1 / FRAMERATE) / anim.timeSeconds
+                    activeAnimsAsyncCtrlNum++
+                    let curAnimInterval = setInterval(() => {
+                        // fromPos-t használom jelen pozíciónak mer jó lesz az úgy
+                        anim.fromPos.y += speedY
+                        if (anim.fromPos.y >= anim.toPos.y) {
+                            if (cells[anim.toPos.x][anim.toPos.y] instanceof Stone)
+                                cells[anim.toPos.x][anim.toPos.y].doDraw = true  // jank?
+                            clearInterval(curAnimInterval)
+                            anim.stone = null  // ez alapján a tömbből máshol törölni is lehet őket
+                            activeAnimsAsyncCtrlNum--
+                        }
+                    }, 1000 / FRAMERATE)
                 }
                 // ha üres az oszlop fentig, feltölteni randommal
                 if (onlyNulls) {
                     for (let inY = 0; inY <= y; inY++) {
                         //if(cells[x][inY] != null) continue
-                        // TODO: animáció létrehozás/indítása nemtom
+                        /** animáció létrehozás/indítása */
                         let rndInt =
                             Math.floor(Math.random() * stoneTemplates.length)
                         cells[x][inY] = stoneTemplates[rndInt].duplicate()
+                        let anim = new AnimateScaleInfo(
+                            new Position(x, inY),
+                            0,
+                            1,
+                            ANIMATION_SECONDS_SHORT,
+                            cells[x][inY].duplicate()
+                        )
+                        activeAnimsArray.push(anim)
+                        // anim
+                        cells[x][inY].doDraw = false  // rajzolás off anim-ig
+                        let speed = (anim.endScaleMul - anim.startScaleMul) * (1 / FRAMERATE) / anim.timeSeconds
+                        activeAnimsAsyncCtrlNum++
+                        let curAnimInterval = setInterval(() => {
+                            anim.startScaleMul += speed
+                            if (anim.startScaleMul >= anim.endScaleMul) {
+                                if (cells[anim.pos.x][anim.pos.y] instanceof Stone)
+                                    cells[anim.pos.x][anim.pos.y].doDraw = true  // jank?
+                                clearInterval(curAnimInterval)
+                                anim.stone = null  // ez alapján a tömbből máshol törölni is lehet őket
+                                activeAnimsAsyncCtrlNum--
+                            }
+                        }, 1000 / FRAMERATE)
                     }
                 }
             }
@@ -335,7 +389,7 @@ let points = 0
  * Még vanó másodpercek
  * @type {number|string}
  */
-let timeLeftSecs = 60
+let timeLeftSecs = 3600
 
 function drawSideUI() {
     // gridX és gridY-hoz igazítva sima kéne legyen
@@ -381,7 +435,7 @@ function drawSideUI() {
 let loopInProgress = false
 
 /**
- * game mechanic frissítéseket ki lehet kapcsolni anim idejére
+ * game mechanic frissítéseket ki lehet kapcsolni
  * @type {boolean}
  */
 let doBoardUpdates = true
@@ -392,22 +446,62 @@ let doBoardUpdates = true
 function loop() {
     if (loopInProgress) return
     loopInProgress = true
+    console.log(`${doBoardUpdates} ${activeAnimsAsyncCtrlNum}`)
 
-    if (doBoardUpdates) {
-        emptiesHandler()
+    while (doBoardUpdates && !activeAnimsAsyncCtrlNum) {
+        if(emptiesHandler())
+            break
         searchDestroyAll()
+        break
     }
     drawBG()
     drawGrid()  // lehet nemkell, még idk.
     drawStones()
     if (selectedCell !== null) drawSelection()
+    animsHandler()
     drawSideUI()
-    if (timeCheck()) gameEndHandler()
+    // if (timeCheck()) gameEndHandler()
+    timeCheck()
 
     loopInProgress = false
 }
 
+function animsHandler() {
+    for (let i = 0; i < activeAnimsArray.length; i++) {
+        // kész animok törlése
+        if (activeAnimsArray[i].stone === null)
+            activeAnimsArray.splice(i, 1)
+    }
+    for (let i = 0; i < activeAnimsArray.length; i++) {
+        // menő animációk rajzolása
+
+        ctx.beginPath()
+
+        if (activeAnimsArray[i].stone instanceof Stone && activeAnimsArray[i].stone.image instanceof Image) {
+            if (activeAnimsArray[i] instanceof AnimateScaleInfo) {
+                // scale animok
+                ctx.drawImage(activeAnimsArray[i].stone.image,
+                    gridX + activeAnimsArray[i].pos.x * cellWidth + (cellWidth * (1 - activeAnimsArray[i].startScaleMul) / 2),
+                    gridY + activeAnimsArray[i].pos.y * cellHeight + (cellHeight * (1 - activeAnimsArray[i].startScaleMul) / 2),
+                    cellWidth * activeAnimsArray[i].startScaleMul,
+                    cellHeight * activeAnimsArray[i].startScaleMul
+                )
+            } else if(activeAnimsArray[i] instanceof AnimateMoveInfo) {
+                // move animok
+                ctx.drawImage(activeAnimsArray[i].stone.image,
+                    gridX + activeAnimsArray[i].fromPos.x * cellWidth + (cellWidth * (1 - STONE_SIZE_MULTIPLIER) / 2),
+                    gridY + activeAnimsArray[i].fromPos.y * cellHeight + (cellHeight * (1 - STONE_SIZE_MULTIPLIER) / 2),
+                    cellWidth * STONE_SIZE_MULTIPLIER,
+                    cellHeight * STONE_SIZE_MULTIPLIER
+                )
+            }
+        }
+        ctx.closePath()
+    }
+}
+
 function gameEndHandler() {
+    timeCheck = timeCheck_
     let ok = false
     let uName = null
     while (!ok) {
@@ -437,18 +531,22 @@ function gameEndHandler() {
     localStorage.setItem("leaderboard", JSON.stringify(leaderboard))
 }
 
+let timeCheck = timeCheck_
+
 /**
  * időlejárat-ellenőrző, le tiltja az inputok kezelését
  * @returns {boolean} le-e járt az idő
  */
-function timeCheck() {
+function timeCheck_() {
     if (timeInterval === null) return false
     if (timeLeftSecs <= 0) {
         clearInterval(timeInterval)
         doHandleClickEvents = false
+        doBoardUpdates = false
         timeInterval = null
         timeLeftSecs = "GAME OVER"
         console.debug("time")
+        timeCheck = gameEndHandler
         return true
     }
     return false
@@ -465,8 +563,9 @@ function loadLeaderboard() {
     try {
         leaderboard = JSON.parse(locLB)
     } catch (e) {
-        console.debug("string json formázása nem megfelelő a localstorage-ban")
-        alert("String JSON formázása nem megfelelő a localstorage-ban, leaderboard nem elérhető")
+        let bruh = "String JSON formázása nem megfelelő a localstorage-ban, leaderboard nem elérhető"
+        console.debug(bruh)
+        alert(bruh)
         leaderboard = null
     }
 }
