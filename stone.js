@@ -25,6 +25,7 @@ class Stone {
     duplicate() {
         let dup = new Stone(this.id, this.image, this.boom)
         dup.doDraw = this.doDraw
+        dup.boom = this.boom
         return dup
     }
 }

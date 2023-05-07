@@ -1,10 +1,11 @@
 /* Beállítások */
+const GAME_TIME_SECS = 120
 const CELLS_X = 8
 const CELLS_Y = 8
 const CELLS_BORDER_PX = 1
 const CELLS_BORDER_SELECTED_PX = 5
 const CELLS_BORDER_VALID_PX = 3
-const FRAMERATE = 60  // lehet később event alapú update, idk.
+const FRAMERATE = 60  // csak kb, mer setInterval nem fix, utólag nincs időm erre
 const ANIMATION_SECONDS_LONG = 0.3
 const ANIMATION_SECONDS_SHORT = 0.15
 const CELLS_BG_STYLE = "#4c096c"
@@ -13,6 +14,8 @@ const CELL_VALID_STYLE = "#e7e1b3"
 const TEXT_STYLE = "#dcdcdc"
 const STONE_SIZE_MULTIPLIER = 0.8
 const DESTROY_AMOUNT = 3
+const BOMB_RND_LIMIT = 0.1  // [0.0 .. 1.0[
+const BOMB_SQUARE_SIDE = 3
 /* Beállítások vége */
 
 let canv = document.getElementById("canvas1")
@@ -68,8 +71,9 @@ function canvClickHandler(e) {
     let mezoX = Math.floor(x / cellWidth)
     let mezoY = Math.floor(y / cellHeight)
     //console.debug(`mezo ${mezoX} ${mezoY}`)
-    if (mezoX >= 0 && mezoX < CELLS_X && mezoY >= 0 && mezoY < CELLS_Y)
+    if (mezoX >= 0 && mezoX < CELLS_X && mezoY >= 0 && mezoY < CELLS_Y) {
         interactWithCell(mezoX, mezoY)
+    }
 }
 
 /**
@@ -96,6 +100,7 @@ function interactWithCell(x, y) {
     if (selectedCell.x !== x && Math.abs(selectedCell.x - x) <= 1 && selectedCell.y === y ||
         selectedCell.y !== y && Math.abs(selectedCell.y - y) <= 1 && selectedCell.x === x) {
         swapCells(selectedCell, new Position(x, y))
+        selectedCell = null
     }
     // mindig null, mert ha messze katt, akkor "cancel"-ként kezeljük
     selectedCell = null
@@ -128,30 +133,42 @@ function swapCells(a, b) {
  */
 function searchDestroyTarget(a) {
     let didAThing = false
-    let startCell = cells[a.x][a.y]
+    let startCell = cells[a.x][a.y].duplicate()
     if (startCell == null) return false
     /**
      * @type {Position[]}
      */
     let destroyArray = [a]
+    /**
+     *
+     * @type {Position[]}
+     */
+    let bombsArray = []
+    // ha saját maga bomba, adjuk hozzá
+    if(cells[a.x][a.y].boom === true) {
+        bombsArray.push(a)
+    }
 
     /// bal-jobb
     // bal
     for (let x = a.x - 1; x >= 0; x--) {
         if (cells[x][a.y] != null && cells[x][a.y].id === startCell.id) {
             destroyArray.push(new Position(x, a.y))
+            if (cells[x][a.y].boom === true) bombsArray.push(new Position(x, a.y))
         } else break
     }
     // jobb
     for (let x = a.x + 1; x < CELLS_X; x++) {
         if (cells[x][a.y] != null && cells[x][a.y].id === startCell.id) {
             destroyArray.push(new Position(x, a.y))
+            if (cells[x][a.y].boom === true) bombsArray.push(new Position(x, a.y))
         } else break
     }
 
     if (destroyArray.length >= DESTROY_AMOUNT) {
-        points += destroyArray.length
         for (let i = 0; i < destroyArray.length; i++) {
+            if (cells[destroyArray[i].x][destroyArray[i].y] != null)
+                points++
             cells[destroyArray[i].x][destroyArray[i].y] = null
         }
         didAThing = true
@@ -164,28 +181,59 @@ function searchDestroyTarget(a) {
     for (let y = a.y - 1; y >= 0; y--) {
         if (cells[a.x][y] != null && cells[a.x][y].id === startCell.id) {
             destroyArray.push(new Position(a.x, y))
+            if (cells[a.x][y].boom === true) bombsArray.push(new Position(a.x, y))
         } else break
     }
     // le
     for (let y = a.y + 1; y < CELLS_Y; y++) {
         if (cells[a.x][y] != null && cells[a.x][y].id === startCell.id) {
             destroyArray.push(new Position(a.x, y))
+            if (cells[a.x][y].boom === true) bombsArray.push(new Position(a.x, y))
         } else break
     }
 
     if (destroyArray.length >= DESTROY_AMOUNT) {
-        points += destroyArray.length
         for (let i = 0; i < destroyArray.length; i++) {
+            if (cells[destroyArray[i].x][destroyArray[i].y] != null)
+                points++
             cells[destroyArray[i].x][destroyArray[i].y] = null
         }
         didAThing = true
     }
-    if(didAThing) {
+
+    destroyArray = []
+    // bomba
+    if (didAThing) {
+        for (let i = 0; i < bombsArray.length; i++) {
+            let a = bombsArray[i]
+            let xI = a.x - Math.floor(BOMB_SQUARE_SIDE / 2)
+            let xImax = xI + BOMB_SQUARE_SIDE - 1
+            for (; xI <= xImax; xI++) {
+                let yI = a.y - Math.floor(BOMB_SQUARE_SIDE / 2)
+                let yImax = yI + BOMB_SQUARE_SIDE - 1
+                for (; yI <= yImax; yI++) {
+                    if (xI >= 0 && xI < CELLS_X && yI >= 0 && yI < CELLS_Y) {
+                        destroyArray.push(new Position(xI, yI))
+                    }
+                }
+            }
+        }
+    }
+
+    if (destroyArray.length >= DESTROY_AMOUNT) {
+        for (let i = 0; i < destroyArray.length; i++) {
+            if (cells[destroyArray[i].x][destroyArray[i].y] != null)
+                points++
+            cells[destroyArray[i].x][destroyArray[i].y] = null
+        }
+        didAThing = true
+    }
+
+    if (didAThing) {
+        // pling
+        sounds["point"].pause()
+        sounds["point"].currentTime = 0
         sounds["point"].play()
-        setTimeout(() => {
-            sounds["point"].pause()
-            sounds["point"].currentTime = 0
-        }, 500)  // kövi animra meglegyen
     }
     return didAThing
 }
@@ -272,17 +320,29 @@ function drawStones() {
         for (let j = 0; j < cells[i].length; j++) {
             if (!(cells[i][j] instanceof Stone) || !cells[i][j].doDraw)
                 continue
-            ctx.beginPath()
+            let x = gridX + i * cellWidth + (cellWidth * (1 - STONE_SIZE_MULTIPLIER) / 2)
+            let y = gridY + j * cellHeight + (cellHeight * (1 - STONE_SIZE_MULTIPLIER) / 2)
             ctx.drawImage(cells[i][j].image,
-                gridX + i * cellWidth + (cellWidth * (1 - STONE_SIZE_MULTIPLIER) / 2),
-                gridY + j * cellHeight + (cellHeight * (1 - STONE_SIZE_MULTIPLIER) / 2),
+                x,
+                y,
                 cellWidth * STONE_SIZE_MULTIPLIER,
                 cellHeight * STONE_SIZE_MULTIPLIER
             )
-            ctx.closePath()
+            if (cells[i][j].boom === true) {
+                ctx.drawImage(
+                    bombImg,
+                    x + cellWidth / 2,
+                    y + cellHeight / 2,
+                    cellWidth * STONE_SIZE_MULTIPLIER * .5,
+                    cellHeight * STONE_SIZE_MULTIPLIER * .5
+                )
+            }
         }
     }
 }
+
+let bombImg = new Image()
+bombImg.src = "images/explosion.png"
 
 /**
  * Aktív animációk száma
@@ -357,6 +417,10 @@ function emptiesHandler() {
                         let rndInt =
                             Math.floor(Math.random() * stoneTemplates.length)
                         cells[x][inY] = stoneTemplates[rndInt].duplicate()
+                        // bonba
+                        if (Math.random() <= BOMB_RND_LIMIT) {
+                            cells[x][inY].boom = true
+                        }
                         let anim = new AnimateScaleInfo(
                             new Position(x, inY),
                             0,
@@ -400,7 +464,7 @@ let points = 0
  * Még vanó másodpercek
  * @type {number|string}
  */
-let timeLeftSecs = 3600
+let timeLeftSecs = GAME_TIME_SECS
 
 function drawSideUI() {
     // gridX és gridY-hoz igazítva sima kéne legyen
@@ -457,7 +521,6 @@ let doBoardUpdates = true
 function loop() {
     if (loopInProgress) return
     loopInProgress = true
-    console.log(`${doBoardUpdates} ${activeAnimsAsyncCtrlNum}`)
 
     while (doBoardUpdates && !activeAnimsAsyncCtrlNum) {
         if (emptiesHandler())
@@ -596,6 +659,10 @@ function initGame() {
             let rndInt =
                 Math.floor(Math.random() * stoneTemplates.length)
             cells[i][j] = stoneTemplates[rndInt].duplicate()
+            // bonba
+            if (Math.random() <= BOMB_RND_LIMIT) {
+                cells[i][j].boom = true
+            }
         }
     }
     // hehe
